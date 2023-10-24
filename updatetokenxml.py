@@ -69,7 +69,15 @@ def fetchTokenInfo(sf_entry):
     match_info = {}
     
     match_info['token_name'] = sf_entry['name'] #using token name from Scryfall as written; some names need 'token' appended or spaces added on the end
-    match_info['token_text'] = sf_entry['oracle_text']
+    
+    if sf_entry['layout'] == 'flip': #handle vertical flip cards
+        
+        match_info['token_text'] = sf_entry['card_faces'][0]['oracle_text'] + "\n\n---\n\n" + sf_entry['card_faces'][1]['oracle_text']
+    
+    else: #handle everything else
+        
+        match_info['token_text'] = sf_entry['oracle_text']
+        
     match_info['token_type'] = sf_entry['type_line']
     match_info['token_colors'] = sorted(sf_entry['colors'])
         
@@ -145,7 +153,7 @@ def xmlMatch(xml_root, token_info, set_code):
             reprint_count += 1   
             
     return match_found
-                        
+
 def createXmlEntry(token_info, set_code):
     """
     Creates a new XML entry based on the token information in token_info and the given set_code.
@@ -259,9 +267,22 @@ def updateTokenXML(set_code, xml_file):
     #pull down the token set from Scryfall using pull_scryfall_API()
     token_set = pullScryfallAPI('https://api.scryfall.com/cards/search?q=s%3A'+'t'+set_code.lower())
     
+    #end program early if a set with no tokens is input
+    if len(token_set) == 0:
+    	print (f"No tokens found in set {set_code}. Please double check that the set code is correct and that Scryfall has tokens available for that set.")
+    	return
+    
     #parse the existing token xml
     parser = etree.XMLParser(remove_blank_text=True) #removes blank spaces to make pretty print behave with .insert
-    xml_tree = etree.parse(xml_file,parser)
+    
+    #end program early if the file cannot be parsed
+    try:
+    	xml_tree = etree.parse(xml_file,parser)
+    	
+    except:
+    	print("Tokens file could not be found or parsed. Please double check filepath.")
+    	return
+    	
     xml_root = xml_tree.getroot()
     
     #create new xml tree to add new tokens to
