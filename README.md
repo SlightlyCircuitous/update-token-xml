@@ -2,7 +2,7 @@
 
 ## About
 
-Command line tool to compare a new set of tokens from Scryfall with an existing token XML. 
+Command line tool to compare a new set of tokens from Scryfall with an existing Cockatrice token XML. 
 
 Pulls down a token set from Scryfall, appends reprinted tokens to a copy of the current XML file, and creates entries for new tokens in a separate XML file. Pulls the current large Scryfall hard link for picURLs.
 
