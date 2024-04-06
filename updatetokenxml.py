@@ -55,22 +55,25 @@ def pullScryfallAPI(download_url):
         
     return token_list
 
-def fetchTokenInfo(sf_entry):
+def fetchTokenInfo(sf_entry, layout='token'):
     """
     Pulls token information from a Scryfall entry to compare against information from the Cockatrice token XML.
     Also takes the large image uri for use in creating set lines and new token entries.
     
     :param sf_entry: a dictionary containing token information from Scryfall; either a full entry 
-                        or part of a double-faced token entry
+                    or part of a double-faced token entry
+
+    :param layout: a string describing the layout of the token, pulled from the Scryfall entry; defaults to 'token', which describes the
+                    layout of normal, one-sided tokens
                         
-    :return match_info: a dictionary containing only the relevent information needed from the full scryfall entry
+    :return match_info: a dictionary containing only the relevant information needed from the full Scryfall entry
     """
     
     match_info = {}
     
     match_info['token_name'] = sf_entry['name'] #using token name from Scryfall as written; some names need 'token' appended or spaces added on the end
     
-    if sf_entry['layout'] == 'flip': #handle vertical flip cards
+    if layout == 'flip': #handle vertical flip cards
         
         match_info['token_text'] = sf_entry['card_faces'][0]['oracle_text'] + "\n\n---\n\n" + sf_entry['card_faces'][1]['oracle_text']
     
@@ -99,10 +102,10 @@ def xmlMatch(xml_root, token_info, set_code):
     Depends on lxml library.
     
     :param xml_root: the root of the XML file that new tokens are compared against
-    :param token_info: a dict containing relevent information on the new token being compared
+    :param token_info: a dict containing relevant information on the new token being compared
     :set_code: the set code for the new set
     
-    :return match_found: a boolean indicating whether or not a match to an exisiting token was found
+    :return match_found: a boolean indicating whether or not a match to an existing token was found
     """
     
     global reprint_count
@@ -111,7 +114,7 @@ def xmlMatch(xml_root, token_info, set_code):
     
     for xml_card in xml_root.findall('./cards/'):
                     
-        #unify formatting between scryfall and the token xml for matching
+        #unify formatting between Scryfall and the token xml for matching
             
         #name
         xml_name = xml_card.findtext('name')
@@ -159,7 +162,7 @@ def createXmlEntry(token_info, set_code):
     Creates a new XML entry based on the token information in token_info and the given set_code.
     Depends on lxml library.
     
-    :param token_info: a dict containing relevent information on the new token being compared
+    :param token_info: a dict containing relevant information on the new token being compared
     :set_code: the set code for the new set
     
     :return card: an lxml Element object containing all the necessary information for a new XML entry
@@ -219,7 +222,7 @@ def createXmlEntry(token_info, set_code):
             
     except IndexError:
         
-        #anything without an emdash is basically guarenteed not to need 'Token' appended
+        #anything without an emdash is basically guaranteed not to need 'Token' appended
         pass
     
     #the current convention is to have a cmc line of 0 for creatures and artifacts but not anything else
@@ -257,7 +260,7 @@ def createXmlEntry(token_info, set_code):
 #main function
 def updateTokenXML(set_code, xml_file):
     """
-    Builds two xmls of tokens based on a scryfall API search. Puts reprints in xml_file and new tokens 
+    Builds two xmls of tokens based on a Scryfall API search. Puts reprints in xml_file and new tokens 
     in a new xml_file. Does not handle reverse-related. Depends on re and lxml libraries. 
     
     :param set_code: the three letter code representing the set
@@ -266,7 +269,7 @@ def updateTokenXML(set_code, xml_file):
     
     #pull down the token set from Scryfall using pull_scryfall_API()
     token_set = pullScryfallAPI('https://api.scryfall.com/cards/search?q=s%3A'+'t'+set_code.lower())
-    
+
     #end program early if a set with no tokens is input
     if len(token_set) == 0:
     	print (f"No tokens found in set {set_code}. Please double check that the set code is correct and that Scryfall has tokens available for that set.")
@@ -278,11 +281,11 @@ def updateTokenXML(set_code, xml_file):
     #end program early if the file cannot be parsed
     try:
     	xml_tree = etree.parse(xml_file,parser)
-    	
+    
     except:
     	print("Tokens file could not be found or parsed. Please double check filepath.")
     	return
-    	
+    
     xml_root = xml_tree.getroot()
     
     #create new xml tree to add new tokens to
@@ -294,20 +297,17 @@ def updateTokenXML(set_code, xml_file):
 
     #initialize counters for this function
     new_token_count  = 0
-    double_faced_count = 0
     reprint_count = 0
     
     for sf_token in token_set:
         
         #handle double-faced tokens specially due to their unique file structure
-        if sf_token['layout'] == 'double_faced_token':
-            
-            double_faced_count += 1
+        if sf_token['layout'] == 'double_faced_token' or sf_token['layout'] == 'flip':
             
             for sf_face in sf_token['card_faces']:
 
-                #get all the relevent information out of the face entry to avoid passing the whole thing
-                face_info = fetchTokenInfo(sf_face)
+                #get all the relevant information out of the face entry to avoid passing the whole thing
+                face_info = fetchTokenInfo(sf_face, sf_token['layout'])
 
                 #look for a match in the XML and insert a set line if found
                 match_found = xmlMatch(xml_root, face_info, set_code)
