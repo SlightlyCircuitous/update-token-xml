@@ -91,6 +91,10 @@ def fetchTokenInfo(sf_entry, layout='token'):
         match_info['token_pt'] = ""
         
     match_info['token_image'] = sf_entry['image_uris']['large']
+
+    #We don't need these fields for matching, but we will need them later for certain token entries
+    match_info['cmc'] = sf_entry['cmc']
+    match_info['mana_cost'] = sf_entry['mana_cost']
         
     return match_info
 
@@ -224,9 +228,14 @@ def createXmlEntry(token_info, set_code):
         
         #anything without an emdash is basically guaranteed not to need 'Token' appended
         pass
+
+    #several tokens have non-zero cmc values since they are direct copies of cards
+    if token_info['cmc'] != 0:
+        cmc = etree.SubElement(prop,'cmc')
+        cmc.text = str(int(token_info['cmc'])) #scryfall stores cmc as a float and lxml only takes text
     
     #the current convention is to have a cmc line of 0 for creatures and artifacts but not anything else
-    if token_info['token_type'] not in SHORT_TAG_LIST:
+    elif token_info['token_type'] not in SHORT_TAG_LIST:
         cmc = etree.SubElement(prop,'cmc')
         cmc.text = '0'
 
@@ -234,6 +243,11 @@ def createXmlEntry(token_info, set_code):
         pt = etree.SubElement(prop,'pt')
         pt.text = token_info['token_pt']
 
+    #several tokens have non-empty manacost values since they are direct copies of cards
+    if token_info['mana_cost'] != "":
+        manacost = etree.SubElement(prop,'manacost')
+        manacost.text = token_info['mana_cost'].translate(str.maketrans({'}':"",'{':""})) #turns '{' and '}' into ""
+        
     card_set = etree.SubElement(card, 'set', attrib={'picURL':""})
     card_set.set('picURL', token_info['token_image'])
     card_set.text = set_code.upper()
@@ -280,10 +294,10 @@ def updateTokenXML(set_code, xml_file):
     
     #end program early if the file cannot be parsed
     try:
-    	xml_tree = etree.parse(xml_file,parser)
+        xml_tree = etree.parse(xml_file,parser)
     
     except:
-    	print("Tokens file could not be found or parsed. Please double check filepath.")
+    	print("Tokens file could not be found or parsed. Please double check filepath and/or xml integrity.")
     	return
     
     xml_root = xml_tree.getroot()
@@ -338,7 +352,8 @@ def updateTokenXML(set_code, xml_file):
     
     #outputs the amended token xml file -- contains reprinted tokens
     etree.indent(xml_tree,space='    ')
-    xml_tree.write(f'token_file_{set_code}_update.xml',encoding='utf-8', xml_declaration=True, pretty_print=True)
+    xml_tree.find('./info/createdAt').text = "" #prevents short tag
+    xml_tree.write(f'token_file_{set_code}_update.xml', encoding='utf-8', xml_declaration=True, pretty_print=True)
     
     #output some token facts
     print(f'Created {new_token_count} new token entries in {set_code}_new_tokens.xml')
