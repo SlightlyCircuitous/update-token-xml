@@ -13,5 +13,6 @@ Run using `python filename setcode /path/to/current/XML/file` or make the file e
 Does not handle:
 - Filling out related or reverse-related fields
 - Adding spaces to non-uniquely named tokens
+- Adding "(Token)" to token copies of cards
 
 Treats tokens with new reminder text as new tokens.
