@@ -74,9 +74,9 @@ def fetchTokenInfo(sf_entry, layout='token'):
     match_info['token_name'] = sf_entry['name'] #using token name from Scryfall as written; some names need 'token' appended or spaces added on the end
     
     if layout == 'flip': #handle vertical flip cards
-        
-        match_info['token_text'] = sf_entry['card_faces'][0]['oracle_text'] + "\n\n---\n\n" + sf_entry['card_faces'][1]['oracle_text']
     
+        match_info['token_text'] = sf_entry['card_faces'][0]['oracle_text'] + "\n\n---\n\n" + sf_entry['card_faces'][1]['oracle_text']
+        
     else: #handle everything else
         
         match_info['token_text'] = sf_entry['oracle_text']
@@ -91,10 +91,21 @@ def fetchTokenInfo(sf_entry, layout='token'):
         match_info['token_pt'] = ""
         
     match_info['token_image'] = sf_entry['image_uris']['large']
-
+    
+    #these are handled elsewhere
+    if layout != 'flip' and layout != 'reversible_card':
+        
+        match_info['UUID'] = sf_entry['id']
+        match_info['num'] = sf_entry['collector_number']
+    
     #We don't need these fields for matching, but we will need them later for certain token entries
-    match_info['cmc'] = sf_entry['cmc']
-    match_info['mana_cost'] = sf_entry['mana_cost']
+    if 'cmc' in sf_entry.keys() and 'mana_cost' in sf_entry.keys(): #handle double faced reminder cards
+        match_info['cmc'] = sf_entry['cmc']
+        match_info['mana_cost'] = sf_entry['mana_cost']
+    
+    else: #technically there is no cmc for reminder cards but treating it as 0 is easier
+        match_info['cmc'] = 0
+        match_info['mana_cost'] = ""
         
     return match_info
 
@@ -146,7 +157,7 @@ def xmlMatch(xml_root, token_info, set_code):
         #append picURL/set line to existing file if a perfect match
         if (xml_name.startswith(token_info['token_name'])) and (xml_text == token_info['token_text']) and (xml_card.find('./prop/type').text == token_info['token_type']) and (xml_colors == token_info['token_colors']) and (xml_pt == token_info['token_pt']):
 
-            new = etree.Element('set',attrib = {'picURL':token_info['token_image']})
+            new = etree.Element('set', attrib={'picURL':token_info['token_image'],'uuid':token_info['UUID'], 'num':token_info['num']})
             new.text = set_code.upper()
 
             #insert needs a relative index; <text> may or may not exist
@@ -191,7 +202,7 @@ def createXmlEntry(token_info, set_code):
     card_type.text = token_info['token_type']
 
     maintype = etree.SubElement(prop,'maintype')
-       
+
     #determine the maintype and whether or not the token has a subtype   
     if 'Emblem' in card_type.text:
         maintype.text = "Emblem"
@@ -248,8 +259,7 @@ def createXmlEntry(token_info, set_code):
         manacost = etree.SubElement(prop,'manacost')
         manacost.text = token_info['mana_cost'].translate(str.maketrans({'}':"",'{':""})) #turns '{' and '}' into ""
         
-    card_set = etree.SubElement(card, 'set', attrib={'picURL':""})
-    card_set.set('picURL', token_info['token_image'])
+    card_set = etree.SubElement(card, 'set', attrib={'picURL':token_info['token_image'],'uuid':token_info['UUID'], 'num':token_info['num']})
     card_set.text = set_code.upper()
     
     #add 'related' element if the card transforms into something
@@ -286,8 +296,8 @@ def updateTokenXML(set_code, xml_file):
 
     #end program early if a set with no tokens is input
     if len(token_set) == 0:
-    	print (f"No tokens found in set {set_code}. Please double check that the set code is correct and that Scryfall has tokens available for that set.")
-    	return
+        print (f"No tokens found in set {set_code}. Please double check that the set code is correct and that Scryfall has tokens available for that set.")
+        return
     
     #parse the existing token xml
     parser = etree.XMLParser(remove_blank_text=True) #removes blank spaces to make pretty print behave with .insert
@@ -297,8 +307,8 @@ def updateTokenXML(set_code, xml_file):
         xml_tree = etree.parse(xml_file,parser)
     
     except:
-    	print("Tokens file could not be found or parsed. Please double check filepath and/or xml integrity.")
-    	return
+        print("Tokens file could not be found or parsed. Please double check filepath and/or xml integrity.")
+        return
     
     xml_root = xml_tree.getroot()
     
@@ -316,13 +326,20 @@ def updateTokenXML(set_code, xml_file):
     for sf_token in token_set:
         
         #handle double-faced tokens specially due to their unique file structure
-        if sf_token['layout'] == 'double_faced_token' or sf_token['layout'] == 'flip':
+        if sf_token['layout'] == 'double_faced_token' or sf_token['layout'] == 'flip' or sf_token['layout'] == 'reversible_card':
+            
+            uuid = sf_token['id']
+            coll_num = sf_token['collector_number']
             
             for sf_face in sf_token['card_faces']:
 
                 #get all the relevant information out of the face entry to avoid passing the whole thing
                 face_info = fetchTokenInfo(sf_face, sf_token['layout'])
 
+                #add this to the dictionary after the fact since it's not in the face entry
+                face_info['UUID'] = uuid
+                face_inf0['num'] = coll_num
+                
                 #look for a match in the XML and insert a set line if found
                 match_found = xmlMatch(xml_root, face_info, set_code)
 
